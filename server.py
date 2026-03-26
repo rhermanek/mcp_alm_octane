@@ -542,16 +542,18 @@ async def create_epic(
 @mcp.tool()
 async def list_features(
     query: str = "",
-    fields: str = "id,name,phase,owner,epic,creation_time",
+    fields: str = "id,name,phase,owner,parent,release,team,milestone,creation_time",
     limit: int = 50,
     offset: int = 0,
 ) -> str:
     """
     List features.
 
+    Note: Features use 'parent' (not 'epic') to reference their parent epic.
+
     Args:
-        query:  OQL filter (e.g. epic={name='Security'}).
-        fields: Fields to return.
+        query:  OQL filter (e.g. parent={name='My Epic'}).
+        fields: Fields to return. Use 'parent' to see the parent epic.
         limit:  Results per page.
         offset: Pagination offset.
 
@@ -573,19 +575,32 @@ async def list_features(
 async def create_feature(
     name: str,
     description: str = "",
+    acceptance_criteria: str = "",
     epic_id: str = "",
     owner_id: str = "",
     release_id: str = "",
+    team_id: str = "",
+    milestone_id: str = "",
 ) -> str:
     """
     Create a new feature.
 
+    IMPORTANT: When assigning a release, the 'team' and 'milestone' fields
+    become required. Use list_teams and list_milestones to find valid IDs.
+
     Args:
-        name:        Feature title (required).
-        description: Description (HTML allowed).
-        epic_id:     Parent epic ID.
-        owner_id:    Owner workspace user ID.
-        release_id:  Release ID.
+        name:                Feature title (required).
+        description:         Description (HTML allowed).
+        acceptance_criteria:  Plain-text acceptance criteria (stored in
+                             acceptance_criteria_udf custom field).
+        epic_id:             Parent epic ID (use list_epics to find valid IDs).
+        owner_id:            Owner workspace user ID.
+        release_id:          Release ID. When set, team_id and milestone_id
+                             are also required.
+        team_id:             Team ID (required when release is set).
+                             Use list_teams to find valid IDs.
+        milestone_id:        Milestone ID (required when release is set).
+                             Use list_milestones to find valid IDs.
 
     Returns:
         JSON of the created feature.
@@ -593,13 +608,79 @@ async def create_feature(
     data: dict[str, Any] = {"name": name}
     if description:
         data["description"] = description
+    if acceptance_criteria:
+        data["acceptance_criteria_udf"] = acceptance_criteria
     if epic_id:
         data["parent"] = {"type": "epic", "id": epic_id}
     if owner_id:
         data["owner"] = {"type": "workspace_user", "id": owner_id}
     if release_id:
         data["release"] = {"type": "release", "id": release_id}
+    if team_id:
+        data["team"] = {"type": "team", "id": team_id}
+    if milestone_id:
+        data["milestone"] = {"type": "milestone", "id": milestone_id}
     result = await oc.create_entity("features", data)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def update_feature(
+    entity_id: str,
+    name: str = "",
+    description: str = "",
+    acceptance_criteria: str = "",
+    phase_id: str = "",
+    owner_id: str = "",
+    release_id: str = "",
+    team_id: str = "",
+    milestone_id: str = "",
+) -> str:
+    """
+    Update an existing feature.
+
+    IMPORTANT: When assigning a release for the first time, 'team' and
+    'milestone' are also required. Use list_teams and list_milestones to
+    find valid IDs.
+
+    Args:
+        entity_id:           Feature ID (required).
+        name:                New title (leave empty to keep current).
+        description:         New description (leave empty to keep current).
+        acceptance_criteria:  New acceptance criteria (plain text, stored in
+                             acceptance_criteria_udf custom field).
+        phase_id:            New phase ID (e.g. 'phase.feature.done',
+                             'phase.feature.inprogress', 'phase.feature.new').
+                             Use list_phases to find valid phase IDs.
+        owner_id:            New owner workspace user ID.
+        release_id:          Release ID. When setting for the first time,
+                             also provide team_id and milestone_id.
+        team_id:             Team ID.
+        milestone_id:        Milestone ID.
+
+    Returns:
+        JSON of the updated feature.
+    """
+    data: dict[str, Any] = {}
+    if name:
+        data["name"] = name
+    if description:
+        data["description"] = description
+    if acceptance_criteria:
+        data["acceptance_criteria_udf"] = acceptance_criteria
+    if phase_id:
+        data["phase"] = {"type": "phase", "id": phase_id}
+    if owner_id:
+        data["owner"] = {"type": "workspace_user", "id": owner_id}
+    if release_id:
+        data["release"] = {"type": "release", "id": release_id}
+    if team_id:
+        data["team"] = {"type": "team", "id": team_id}
+    if milestone_id:
+        data["milestone"] = {"type": "milestone", "id": milestone_id}
+    if not data:
+        return "Error: no fields specified to update"
+    result = await oc.update_entity("features", entity_id, data)
     return _fmt(result)
 
 
@@ -880,7 +961,7 @@ async def list_sprints(
 @mcp.tool()
 async def list_milestones(
     query: str = "",
-    fields: str = "id,name,date,release,description",
+    fields: str = "id,name,date,release,description,acceptance_criteria_udf",
     limit: int = 50,
     offset: int = 0,
 ) -> str:
@@ -889,7 +970,8 @@ async def list_milestones(
 
     Args:
         query:   OQL filter (e.g. release={name='Q1 2026 DevSecOps'}).
-        fields:  Fields to return.
+        fields:  Fields to return. Include 'acceptance_criteria_udf'
+                 to see acceptance criteria.
         limit:   Results per page.
         offset:  Pagination offset.
 
@@ -903,6 +985,43 @@ async def list_milestones(
         limit=limit,
         offset=offset,
     )
+    return _fmt(result)
+
+
+@mcp.tool()
+async def create_milestone(
+    name: str,
+    date: str,
+    release_id: str,
+    acceptance_criteria: str,
+    description: str = "",
+) -> str:
+    """
+    Create a new milestone.
+
+    Args:
+        name:                Milestone name (required).
+        date:                Target date in ISO 8601 format, e.g.
+                             '2026-06-30T12:00:00Z' (required).
+        release_id:          Release ID to associate with (required).
+                             Use list_releases to find valid IDs.
+        acceptance_criteria:  Plain-text acceptance criteria (required).
+                             This is a required custom field
+                             (acceptance_criteria_udf).
+        description:         Description (HTML allowed).
+
+    Returns:
+        JSON of the created milestone.
+    """
+    data: dict[str, Any] = {
+        "name": name,
+        "date": date,
+        "release": {"type": "release", "id": release_id},
+        "acceptance_criteria_udf": acceptance_criteria,
+    }
+    if description:
+        data["description"] = description
+    result = await oc.create_entity("milestones", data)
     return _fmt(result)
 
 
@@ -1132,6 +1251,32 @@ async def list_releases(
         limit=limit,
         offset=offset,
     )
+    return _fmt(result)
+
+
+@mcp.tool()
+async def create_release(
+    name: str,
+    start_date: str,
+    end_date: str,
+) -> str:
+    """
+    Create a new release.
+
+    Args:
+        name:        Release name (required), e.g. 'Q2 2026 DevSecOps'.
+        start_date:  Start date in ISO 8601 format, e.g. '2026-04-01T12:00:00Z'.
+        end_date:    End date in ISO 8601 format, e.g. '2026-06-30T12:00:00Z'.
+
+    Returns:
+        JSON of the created release including its new ID.
+    """
+    data: dict[str, Any] = {
+        "name": name,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+    result = await oc.create_entity("releases", data)
     return _fmt(result)
 
 
