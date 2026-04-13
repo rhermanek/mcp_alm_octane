@@ -185,7 +185,7 @@ phase={name='New'}
 severity={id='severity_high'}
 owner={name='Jane Doe'}
 sprint={name='Sprint 42'}
-feature={name='Authentication'}
+parent={name='Authentication'}
 release={name='Q1 2026 DevSecOps'}
 
 # Glob / substring match (use * wildcards, NOT ~ operator)
@@ -202,11 +202,19 @@ story_points=null
 # Combine with semicolon (AND)
 phase={name='In Progress'};owner={name='Jane Doe'}
 
+# The MCP server also accepts SQL-style AND/&& and normalizes it to ';'
+phase={name='In Progress'} and owner={name='Jane Doe'}
+phase={name='In Progress'} && owner={name='Jane Doe'}
+
 # OR with ||
 phase={name='New'} || phase={name='In Progress'}
 ```
 
-**NOT supported on this instance:** `~` (tilde contains), `&&`, `!=`, `>=`, `<=`, date comparisons.
+**NOT supported on this instance:** `~` (tilde contains), `!=`, `>=`, `<=`, date comparisons.
+
+Note: Some Octane versions may throw internal errors for `owner=null` combined with
+certain phase filters. The MCP server includes a fallback that evaluates
+`owner=null` client-side so list calls remain usable.
 
 ---
 

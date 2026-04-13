@@ -397,7 +397,7 @@ async def update_defect(
 @mcp.tool()
 async def list_stories(
     query: str = "",
-    fields: str = "id,name,phase,story_points,owner,sprint,feature,creation_time",
+    fields: str = "id,name,phase,story_points,owner,sprint,parent,creation_time,last_modified",
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
@@ -409,7 +409,7 @@ async def list_stories(
         query:   OQL filter. Examples:
                    phase={name='In Progress'}
                    sprint={name='Sprint 42'}
-                   feature={name='Authentication'}
+                   parent={name='Authentication'}
                    story_points>5
         fields:  Fields to return.
         limit:   Results per page.

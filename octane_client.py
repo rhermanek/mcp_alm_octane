@@ -8,7 +8,7 @@ Authentication flow:
   4. On 401 response: re-authenticate and retry once
 """
 
-import os
+import re
 import httpx
 from typing import Any
 
@@ -20,6 +20,9 @@ _CLIENT_SECRET: str = ""
 _VERIFY_SSL: bool = False
 _SESSION_COOKIE: str | None = None
 _HTTP_CLIENT: httpx.AsyncClient | None = None
+
+
+_OWNER_NULL_PATTERN = re.compile(r"(^|;)\s*owner\s*=\s*null\s*(;|$)", re.IGNORECASE)
 
 
 def configure(
@@ -122,6 +125,90 @@ async def _request(
     return {"status": "ok"}
 
 
+def _normalize_query(query: str) -> str:
+    """Normalize common non-Octane OQL forms into Octane-compatible syntax."""
+    normalized = query.strip()
+    # Common habit: use SQL-style AND/&&. Octane expects ';' as conjunction.
+    normalized = re.sub(r"\s+(and|&&)\s+", ";", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\s*;\s*", ";", normalized)
+    normalized = re.sub(r";{2,}", ";", normalized)
+    return normalized.strip(";")
+
+
+def _has_owner_null_filter(query: str) -> bool:
+    return _OWNER_NULL_PATTERN.search(query) is not None
+
+
+def _strip_owner_null_filter(query: str) -> str:
+    """Remove owner=null from a conjunctive query; preserves other predicates."""
+    stripped = _OWNER_NULL_PATTERN.sub(";", query)
+    stripped = re.sub(r"\s*;\s*", ";", stripped)
+    stripped = re.sub(r";{2,}", ";", stripped)
+    return stripped.strip(";")
+
+
+async def _list_entities_raw(
+    resource: str,
+    fields: list[str] | None,
+    query: str | None,
+    order_by: str | None,
+    limit: int,
+    offset: int,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    if fields:
+        params["fields"] = ",".join(fields)
+    if query:
+        params["query"] = f'"{query}"'
+    if order_by:
+        params["order_by"] = order_by
+    return await _request("GET", workspace_path(resource), params=params)
+
+
+async def _list_with_owner_null_fallback(
+    resource: str,
+    fields: list[str] | None,
+    query_without_owner_null: str | None,
+    order_by: str | None,
+    limit: int,
+    offset: int,
+) -> dict[str, Any]:
+    """
+    Octane may fail DQL translation for owner=null on some phase predicates.
+    Work around this by querying without owner filter and applying owner-is-null
+    filtering client-side.
+    """
+    server_offset = 0
+    page_size = max(limit, 200)
+    all_filtered: list[dict[str, Any]] = []
+
+    while True:
+        page = await _list_entities_raw(
+            resource=resource,
+            fields=fields,
+            query=query_without_owner_null,
+            order_by=order_by,
+            limit=page_size,
+            offset=server_offset,
+        )
+        data = page.get("data", [])
+        if not data:
+            break
+
+        all_filtered.extend(item for item in data if item.get("owner") is None)
+
+        server_offset += len(data)
+        if server_offset >= page.get("total_count", 0):
+            break
+
+    page_data = all_filtered[offset: offset + limit]
+    return {
+        "total_count": len(all_filtered),
+        "data": page_data,
+        "exceeds_total_count": False,
+    }
+
+
 async def list_entities(
     resource: str,
     fields: list[str] | None = None,
@@ -131,14 +218,27 @@ async def list_entities(
     offset: int = 0,
 ) -> dict[str, Any]:
     """GET a collection of entities with optional OCL query/field selection."""
-    params: dict[str, Any] = {"limit": limit, "offset": offset}
-    if fields:
-        params["fields"] = ",".join(fields)
-    if query:
-        params["query"] = f'"{query}"'
-    if order_by:
-        params["order_by"] = order_by
-    return await _request("GET", workspace_path(resource), params=params)
+    normalized_query = _normalize_query(query) if query else None
+
+    if normalized_query and _has_owner_null_filter(normalized_query):
+        query_without_owner_null = _strip_owner_null_filter(normalized_query) or None
+        return await _list_with_owner_null_fallback(
+            resource=resource,
+            fields=fields,
+            query_without_owner_null=query_without_owner_null,
+            order_by=order_by,
+            limit=limit,
+            offset=offset,
+        )
+
+    return await _list_entities_raw(
+        resource=resource,
+        fields=fields,
+        query=normalized_query,
+        order_by=order_by,
+        limit=limit,
+        offset=offset,
+    )
 
 
 async def get_entity(resource: str, entity_id: str, fields: list[str] | None = None) -> Any:
