@@ -8,7 +8,8 @@ An MCP (Model Context Protocol) server that exposes ALM Octane project managemen
 mcp_server/
 ├── server.py           # MCP server — 33 tools across all major entity types
 ├── octane_client.py    # Async HTTP client with session-based auth
-└── requirements.txt    # Python dependencies
+├── requirements.txt    # Python dependencies
+└── setup.py            # Package + console entrypoint (octane-mcp)
 .env                    # Credentials (never commit this file)
 ```
 
@@ -16,7 +17,7 @@ mcp_server/
 
 **Requires Python 3.10 or later.**
 
-### 1. Install dependencies
+### 1. Install dependencies (local development)
 
 ```bash
 cd mcp_server
@@ -32,7 +33,30 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Verify `.env` file
+### 2. Install globally on macOS (all VS Code workspaces)
+
+Use `pipx` to install a user-global command:
+
+```bash
+cd mcp_server
+pipx install .
+```
+
+Upgrade/reinstall after pulling changes:
+
+```bash
+cd mcp_server
+pipx install . --force
+```
+
+Verify install:
+
+```bash
+command -v octane-mcp
+pipx list --short
+```
+
+### 3. Verify `.env` file
 
 The `.env` at the project root must contain:
 
@@ -48,12 +72,18 @@ OCTANE_CLIENT_SECRET=your_client_secret
 OCTANE_VERIFY_SSL=false
 ```
 
+If a secret starts with `=` or contains shell-sensitive characters, quote it:
+
+```env
+OCTANE_CLIENT_SECRET='=your_secret_value'
+```
+
 > **Security note:** When `OCTANE_VERIFY_SSL=false` (the default), TLS certificate
 > verification is disabled. This is intentional for corporate on-prem deployments
 > that use self-signed certificates. Set `OCTANE_VERIFY_SSL=true` whenever your
 > instance has a valid CA-signed certificate.
 
-### 3. Register in VS Code (`.vscode/mcp.json`)
+### 4. Register in VS Code (`.vscode/mcp.json`) - workspace-local
 
 ```json
 {
@@ -80,7 +110,33 @@ Or using `uv run`:
 }
 ```
 
-### 4. Register in Claude Desktop (`claude_desktop_config.json`)
+### 5. Register in VS Code user config (global for all workspaces)
+
+Create or update:
+
+`~/Library/Application Support/Code/User/mcp.json`
+
+```json
+{
+  "servers": {
+    "octane": {
+      "type": "stdio",
+      "command": "/bin/zsh",
+      "args": [
+        "-lc",
+        "set -a; source /absolute/path/to/.env; set +a; exec octane-mcp"
+      ]
+    }
+  }
+}
+```
+
+Notes:
+- Use an absolute `.env` path.
+- `octane-mcp` comes from the global `pipx` install.
+- Reload VS Code after editing user `mcp.json`.
+
+### 6. Register in Claude Desktop (`claude_desktop_config.json`)
 
 ```json
 {
@@ -88,6 +144,18 @@ Or using `uv run`:
     "octane": {
       "command": "/absolute/path/to/mcp_server/.venv/bin/python",
       "args": ["/absolute/path/to/mcp_server/server.py"]
+    }
+  }
+}
+```
+
+Global `pipx` command example:
+
+```json
+{
+  "mcpServers": {
+    "octane": {
+      "command": "octane-mcp"
     }
   }
 }
