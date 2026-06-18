@@ -26,17 +26,27 @@ import octane_client as oc
 # Bootstrap: load .env and configure the HTTP client
 # ---------------------------------------------------------------------------
 
-_env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(_env_path)
+# Load .env from the server directory (next to .env.example), falling back to
+# the project root one level up. The first existing file wins (load_dotenv does
+# not override already-set vars).
+_here = Path(__file__).resolve().parent
+load_dotenv(_here / ".env")
+load_dotenv(_here.parent / ".env")
 
 _REQUIRED_ENV_VARS = [
     "OCTANE_BASE_URL",
     "OCTANE_SHARED_SPACE_ID",
     "OCTANE_WORKSPACE_ID",
-    "OCTANE_CLIENT_ID",
-    "OCTANE_CLIENT_SECRET",
 ]
 _missing = [v for v in _REQUIRED_ENV_VARS if not os.environ.get(v)]
+
+# Authenticate with either an API key (CLIENT_ID + CLIENT_SECRET) or
+# username + password. Exactly one pair must be fully provided.
+_has_api_key = bool(os.environ.get("OCTANE_CLIENT_ID") and os.environ.get("OCTANE_CLIENT_SECRET"))
+_has_user_pass = bool(os.environ.get("OCTANE_USERNAME") and os.environ.get("OCTANE_PASSWORD"))
+if not _has_api_key and not _has_user_pass:
+    _missing.append("OCTANE_CLIENT_ID+OCTANE_CLIENT_SECRET or OCTANE_USERNAME+OCTANE_PASSWORD")
+
 if _missing:
     print(
         f"ERROR: Missing required environment variables: {', '.join(_missing)}\n"
@@ -50,8 +60,10 @@ oc.configure(
     base_url=os.environ["OCTANE_BASE_URL"],
     shared_space_id=os.environ["OCTANE_SHARED_SPACE_ID"],
     workspace_id=os.environ["OCTANE_WORKSPACE_ID"],
-    client_id=os.environ["OCTANE_CLIENT_ID"],
-    client_secret=os.environ["OCTANE_CLIENT_SECRET"],
+    client_id=os.environ.get("OCTANE_CLIENT_ID", ""),
+    client_secret=os.environ.get("OCTANE_CLIENT_SECRET", ""),
+    username=os.environ.get("OCTANE_USERNAME", ""),
+    password=os.environ.get("OCTANE_PASSWORD", ""),
     verify_ssl=os.environ.get("OCTANE_VERIFY_SSL", "").lower() in ("true", "1", "yes"),
 )
 
@@ -63,7 +75,10 @@ mcp = FastMCP(
         "epics, features, requirements), tests, runs, sprints and milestones. "
         "Most list tools accept an `query` parameter using Octane Query Language (OQL): "
         "e.g. `name='login'`, `severity={id='severity_high'}`, `phase={name='New'}`. "
-        "Use `fields` to limit which fields are returned and reduce response size."
+        "Use `fields` to limit which fields are returned and reduce response size. "
+        "The generic octane_* tools accept optional `shared_space_id` / `workspace_id` "
+        "to target any workspace per call; discover IDs with list_shared_spaces and "
+        "list_workspaces. One authenticated session spans all workspaces and spaces."
     ),
 )
 
@@ -102,6 +117,8 @@ async def octane_list(
     order_by: str = "",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List / search any Octane entity collection with optional filtering.
@@ -132,6 +149,9 @@ async def octane_list(
                    Example: '-creation_time' or 'name'
         limit:     Number of results per page (default 50, max 1000).
         offset:    Zero-based pagination offset.
+        shared_space_id: Target a different shared space (default: configured).
+        workspace_id:    Target a different workspace (default: configured).
+                         Discover IDs with list_shared_spaces / list_workspaces.
 
     Returns:
         JSON with keys 'total_count' and 'data' (list of entity objects).
@@ -143,6 +163,8 @@ async def octane_list(
         order_by=order_by or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -152,6 +174,8 @@ async def octane_get(
     resource: str,
     entity_id: str,
     fields: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Retrieve a single Octane entity by ID.
@@ -160,6 +184,8 @@ async def octane_get(
         resource:   Entity type (e.g. 'defects', 'stories', 'requirements').
         entity_id:  The numeric entity ID (as a string).
         fields:     Comma-separated fields to return. Leave empty for default.
+        shared_space_id: Target a different shared space (default: configured).
+        workspace_id:    Target a different workspace (default: configured).
 
     Returns:
         JSON object representing the entity, or null if not found.
@@ -168,6 +194,8 @@ async def octane_get(
         resource=resource,
         entity_id=entity_id,
         fields=[f.strip() for f in fields.split(",") if f.strip()] or None,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -176,6 +204,8 @@ async def octane_get(
 async def octane_create(
     resource: str,
     data: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new entity in Octane.
@@ -206,7 +236,12 @@ async def octane_create(
         payload = json.loads(data)
     except json.JSONDecodeError as e:
         return f"Error: data must be valid JSON — {e}"
-    result = await oc.create_entity(resource=resource, data=payload)
+    result = await oc.create_entity(
+        resource=resource,
+        data=payload,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
+    )
     return _fmt(result)
 
 
@@ -215,6 +250,8 @@ async def octane_update(
     resource: str,
     entity_id: str,
     data: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Update an existing Octane entity by ID.
@@ -233,7 +270,13 @@ async def octane_update(
         payload = json.loads(data)
     except json.JSONDecodeError as e:
         return f"Error: data must be valid JSON — {e}"
-    result = await oc.update_entity(resource=resource, entity_id=entity_id, data=payload)
+    result = await oc.update_entity(
+        resource=resource,
+        entity_id=entity_id,
+        data=payload,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
+    )
     return _fmt(result)
 
 
@@ -241,6 +284,8 @@ async def octane_update(
 async def octane_delete(
     resource: str,
     entity_id: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Delete an Octane entity by ID.
@@ -248,13 +293,20 @@ async def octane_delete(
     Args:
         resource:   Entity type (e.g. 'defects', 'tasks', 'attachments').
         entity_id:  The numeric entity ID.
+        shared_space_id: Target a different shared space (default: configured).
+        workspace_id:    Target a different workspace (default: configured).
 
     Returns:
         Confirmation JSON {"status":"deleted"}.
 
     Note: Not all entity types support deletion (e.g. runs, scm_commits are read-only).
     """
-    result = await oc.delete_entity(resource=resource, entity_id=entity_id)
+    result = await oc.delete_entity(
+        resource=resource,
+        entity_id=entity_id,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
+    )
     return _fmt(result)
 
 
@@ -1371,6 +1423,83 @@ async def create_comment(
         "owner_work_item": {"type": "work_item", "id": work_item_id},
     }
     result = await oc.create_entity("comments", data)
+    return _fmt(result)
+
+
+# ---------------------------------------------------------------------------
+# Workspace / shared-space discovery
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def list_workspaces(
+    shared_space_id: str = "",
+    query: str = "",
+    fields: str = "id,name,description",
+    order_by: str = "",
+    limit: int = 50,
+    offset: int = 0,
+) -> str:
+    """
+    List the workspaces in a shared space.
+
+    Use this to discover workspace_id values to pass to the octane_* tools when
+    working across multiple workspaces. A single authenticated session spans
+    every workspace and shared space the account can access, so no
+    re-authentication is needed when switching scope.
+
+    Args:
+        shared_space_id: Shared space to list from (default: configured).
+        query:           OQL filter, e.g. name='*Team*'.
+        fields:          Comma-separated fields to return.
+        order_by:        Sort field; prefix with '-' for descending.
+        limit:           Results per page.
+        offset:          Pagination offset.
+
+    Returns:
+        JSON with total_count and data array of workspace objects.
+    """
+    result = await oc.list_workspaces(
+        shared_space_id=shared_space_id or None,
+        query=query or None,
+        fields=[f.strip() for f in fields.split(",") if f.strip()] or None,
+        order_by=order_by or None,
+        limit=limit,
+        offset=offset,
+    )
+    return _fmt(result)
+
+
+@mcp.tool()
+async def list_shared_spaces(
+    query: str = "",
+    fields: str = "id,name",
+    order_by: str = "",
+    limit: int = 50,
+    offset: int = 0,
+) -> str:
+    """
+    List the shared spaces (sites) on the Octane server.
+
+    Use this to discover shared_space_id values. Results are limited to spaces
+    the account can access; enumerating every space requires site-admin rights.
+
+    Args:
+        query:    OQL filter, e.g. name='Production*'.
+        fields:   Comma-separated fields to return.
+        order_by: Sort field; prefix with '-' for descending.
+        limit:    Results per page.
+        offset:   Pagination offset.
+
+    Returns:
+        JSON with total_count and data array of shared-space objects.
+    """
+    result = await oc.list_shared_spaces(
+        query=query or None,
+        fields=[f.strip() for f in fields.split(",") if f.strip()] or None,
+        order_by=order_by or None,
+        limit=limit,
+        offset=offset,
+    )
     return _fmt(result)
 
 

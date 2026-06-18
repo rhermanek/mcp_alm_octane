@@ -175,6 +175,18 @@ Global `pipx` command example:
 | `octane_update` | Update any entity by ID |
 | `octane_delete` | Delete any entity by ID |
 
+Every `octane_*` tool accepts optional `shared_space_id` / `workspace_id` to target a
+workspace other than the configured default for that single call. One authenticated
+session spans all workspaces and shared spaces the account can access, so switching
+scope needs no re-authentication.
+
+### Discovery
+
+| Tool | Description |
+|---|---|
+| `list_workspaces` | List workspaces in a shared space, to discover `workspace_id` values |
+| `list_shared_spaces` | List shared spaces on the server, to discover `shared_space_id` values |
+
 ### Work Items
 
 | Tool | Description |
