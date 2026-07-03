@@ -340,6 +340,22 @@ async def delete_entity(
     return await _request("DELETE", path)
 
 
+async def list_metadata_fields(
+    entity_name: str,
+    shared_space_id: str | None = None,
+    workspace_id: str | None = None,
+) -> dict[str, Any]:
+    """List the field metadata for an entity type via the workspace metadata API.
+
+    Returns the raw metadata/fields response, whose `data` array describes every
+    field on the entity: name, label, field_type, editable/required flags, and
+    for reference fields the allowed target entity types under `field_type_data`.
+    """
+    path = workspace_path("metadata/fields", shared_space_id, workspace_id)
+    params = {"query": f"\"entity_name='{entity_name}'\""}
+    return await _request("GET", path, params=params)
+
+
 async def list_workspaces(
     shared_space_id: str | None = None,
     fields: list[str] | None = None,
