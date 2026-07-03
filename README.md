@@ -6,7 +6,7 @@ An MCP (Model Context Protocol) server that exposes ALM Octane project managemen
 
 ```
 mcp_server/
-├── server.py           # MCP server — 33 tools across all major entity types
+├── server.py           # MCP server — 39 tools across all major entity types
 ├── octane_client.py    # Async HTTP client with session-based auth
 ├── requirements.txt    # Python dependencies
 └── setup.py            # Package + console entrypoint (octane-mcp)
@@ -174,6 +174,7 @@ Global `pipx` command example:
 | `octane_create` | Create any entity type |
 | `octane_update` | Update any entity by ID |
 | `octane_delete` | Delete any entity by ID |
+| `describe_entity_fields` | List an entity type's fields (schema) — field names, types, and reference targets. Use it to find the right field before building a query or payload |
 
 Every `octane_*` tool accepts optional `shared_space_id` / `workspace_id` to target a
 workspace other than the configured default for that single call. One authenticated
@@ -254,6 +255,25 @@ All list tools accept an optional `query` parameter using OQL syntax.
 > **Important:** All OQL values must be wrapped in outer double-quotes,
 > which the server adds automatically. The examples below show the
 > string you pass as the `query` parameter.
+
+> **Quoting inside the query:** quote string values and logical-name IDs
+> (`severity={id='severity_high'}`), but leave numeric entity IDs unquoted
+> (`parent={id=200441}`).
+
+### Work-item hierarchy
+
+`epic > feature > story > task`. Each level points **up** to its parent through
+the `parent` field (a task points to its story through the `story` field). There
+is no `feature` or `epic` field on a story. To list the children of a work item,
+filter on `parent`:
+
+```
+parent={id=200441}     # all stories under feature 200441 (or features under an epic)
+story={id=200652}      # all tasks under story 200652
+```
+
+Not sure which field an entity exposes? Call `describe_entity_fields` (e.g.
+`entity_name='story'`) to see its schema — field names, types, and reference targets.
 
 ```
 # Equality (simple fields)

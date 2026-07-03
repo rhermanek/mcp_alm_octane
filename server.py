@@ -72,9 +72,25 @@ mcp = FastMCP(
     instructions=(
         "Tools for interacting with an ALM Octane project management instance. "
         "You can query, create, update and delete work items (defects, stories, "
-        "epics, features, requirements), tests, runs, sprints and milestones. "
-        "Most list tools accept an `query` parameter using Octane Query Language (OQL): "
-        "e.g. `name='login'`, `severity={id='severity_high'}`, `phase={name='New'}`. "
+        "epics, features, requirements), tests, runs, sprints and milestones.\n"
+        "\n"
+        "WORK-ITEM HIERARCHY: epic > feature > story (user story) > task. Each level "
+        "points UP to its parent via the `parent` field (a task points to its story via "
+        "the `story` field). There is NO `feature` or `epic` field on a story — to get "
+        "the stories under a feature, filter on parent: `parent={id=200441}`. Likewise "
+        "features under an epic use `parent={id=<epic_id>}`. Call describe_entity_fields "
+        "to see the exact fields and reference targets for any entity type.\n"
+        "\n"
+        "OQL (Octane Query Language) in the `query` parameter:\n"
+        "  - Quote string values and logical-name IDs: `name='login'`, "
+        "`severity={id='severity_high'}`, `phase={name='New'}`.\n"
+        "  - Do NOT quote numeric entity IDs: `parent={id=200441}`, `owner={id=1002}`.\n"
+        "  - Reference (relation) fields filter on a sub-condition in braces, by `id` or "
+        "`name`: `owner={name='Jane'}`, `release={id=100003}`.\n"
+        "  - Combine predicates with `;` (logical AND): "
+        "`phase={name='New'};owner={id=1002}`. (`AND`/`&&` are accepted and normalized.)\n"
+        "  - `*` is a wildcard in string matches: `name='*timeout*'`.\n"
+        "\n"
         "Use `fields` to limit which fields are returned and reduce response size. "
         "The generic octane_* tools accept optional `shared_space_id` / `workspace_id` "
         "to target any workspace per call; discover IDs with list_shared_spaces and "
@@ -137,11 +153,15 @@ async def octane_list(
                    taxonomy_nodes, timelines, team_member_team_sprints,
                    cloud_test_runners, test_runners, workspace_users.
         query:     OQL filter string (Octane Query Language).
+                   Quote string values and logical-name IDs; leave numeric
+                   entity IDs unquoted. Reference fields filter in braces by
+                   id or name. Combine predicates with ';' (AND).
                    Examples:
                      name='login bug'
-                     severity={id='severity_high'}
+                     severity={id='severity_high'}     (logical-name id: quoted)
+                     parent={id=200441}                (numeric id: unquoted)
                      phase={name='New'};owner={name='John'}
-                     name='*timeout*'
+                     name='*timeout*'                  (* = wildcard)
                    Leave empty to return all entities (up to `limit`).
         fields:    Comma-separated field names to include in response. Leave
                    empty for default fields. Example: 'id,name,phase,severity'
@@ -310,6 +330,43 @@ async def octane_delete(
     return _fmt(result)
 
 
+@mcp.tool()
+async def describe_entity_fields(
+    entity_name: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
+) -> str:
+    """
+    List the available fields on an Octane entity type — its schema.
+
+    Use this BEFORE writing an OQL query or a create/update payload when you are
+    unsure which field to filter on or set. It resolves questions like "does a
+    story have a 'feature' field or a 'parent' field?" (answer: 'parent') without
+    trial-and-error 400 errors.
+
+    Args:
+        entity_name:  Singular entity type name as Octane knows it internally,
+                      e.g. 'story', 'defect', 'feature', 'epic', 'task',
+                      'work_item', 'requirement', 'milestone', 'release', 'team'.
+                      (Note: singular here, unlike the plural 'resource' names
+                      used by octane_list, e.g. resource='stories'.)
+        shared_space_id: Target a different shared space (default: configured).
+        workspace_id:    Target a different workspace (default: configured).
+
+    Returns:
+        JSON metadata whose 'data' array lists each field: 'name' (use this in
+        queries and payloads), 'label', 'field_type', editable/required flags,
+        and for reference fields the allowed target entity types under
+        'field_type_data'.
+    """
+    result = await oc.list_metadata_fields(
+        entity_name=entity_name,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
+    )
+    return _fmt(result)
+
+
 # ---------------------------------------------------------------------------
 # Defects
 # ---------------------------------------------------------------------------
@@ -457,11 +514,17 @@ async def list_stories(
     """
     List user stories.
 
+    Note: A story references its parent FEATURE via the 'parent' field, NOT a
+    'feature' field (which does not exist and returns a 400). To list all
+    stories under a feature, filter by parent id: parent={id=200441}.
+    (create_story exposes this as the 'feature_id' argument for convenience,
+    but the underlying field is 'parent'.)
+
     Args:
         query:   OQL filter. Examples:
+                   parent={id=200441}          (all stories under a feature)
                    phase={name='In Progress'}
                    sprint={name='Sprint 42'}
-                   parent={name='Authentication'}
                    story_points>5
         fields:  Fields to return.
         limit:   Results per page.
@@ -498,7 +561,8 @@ async def create_story(
         name:          Story title (required).
         description:   Acceptance criteria / description (HTML allowed).
         story_points:  Effort estimate in story points (0 = unset).
-        feature_id:    Parent feature ID (associates this story with a feature).
+        feature_id:    Parent feature ID (sets the story's 'parent' field to
+                       this feature; query it back with parent={id=<feature_id>}).
         owner_id:      Workspace user ID to assign as owner.
         sprint_id:     Sprint ID to add this story to.
         release_id:    Release ID.
@@ -1501,6 +1565,28 @@ async def list_shared_spaces(
         offset=offset,
     )
     return _fmt(result)
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting doc: surface the OQL query normalization on every query tool
+# ---------------------------------------------------------------------------
+
+# The client silently normalizes a few non-Octane query habits (see
+# octane_client._normalize_query): SQL-style `AND` / `&&` conjunctions become
+# Octane's `;`, and stray/duplicate `;` are collapsed. Append that note to the
+# description of every tool exposing a `query` parameter, so it shows up
+# per-tool in the schema instead of only in the server-level instructions.
+# ponytail: reaches into FastMCP's tool registry (_tool_manager). If a future
+# FastMCP renames it, drop this loop and inline the note into each docstring.
+_QUERY_NORMALIZATION_NOTE = (
+    "\n\nOQL note: conjunctions written as SQL-style `AND` or `&&` are "
+    "automatically normalized to Octane's `;` separator, and duplicate/trailing "
+    "`;` are collapsed — so `phase={name='New'} AND owner={id=1002}` is accepted."
+)
+
+for _tool in mcp._tool_manager.list_tools():
+    if "query" in (_tool.parameters or {}).get("properties", {}):
+        _tool.description = (_tool.description or "") + _QUERY_NORMALIZATION_NOTE
 
 
 # ---------------------------------------------------------------------------
