@@ -378,6 +378,8 @@ async def list_defects(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List defects (bugs) with sensible default fields and sort order.
@@ -406,6 +408,8 @@ async def list_defects(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -419,6 +423,8 @@ async def create_defect(
     owner_id: str = "",
     sprint_id: str = "",
     release_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new defect (bug report) in Octane.
@@ -450,7 +456,7 @@ async def create_defect(
         data["sprint"] = {"type": "sprint", "id": sprint_id}
     if release_id:
         data["release"] = {"type": "release", "id": release_id}
-    result = await oc.create_entity("defects", data)
+    result = await oc.create_entity("defects", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -463,6 +469,8 @@ async def update_defect(
     phase_id: str = "",
     owner_id: str = "",
     sprint_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Update an existing defect.
@@ -495,7 +503,7 @@ async def update_defect(
         data["sprint"] = {"type": "sprint", "id": sprint_id}
     if not data:
         return "Error: no fields specified to update"
-    result = await oc.update_entity("defects", entity_id, data)
+    result = await oc.update_entity("defects", entity_id, data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -510,6 +518,8 @@ async def list_stories(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List user stories.
@@ -540,6 +550,8 @@ async def list_stories(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -553,6 +565,8 @@ async def create_story(
     owner_id: str = "",
     sprint_id: str = "",
     release_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new user story.
@@ -583,7 +597,7 @@ async def create_story(
         data["sprint"] = {"type": "sprint", "id": sprint_id}
     if release_id:
         data["release"] = {"type": "release", "id": release_id}
-    result = await oc.create_entity("stories", data)
+    result = await oc.create_entity("stories", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -597,6 +611,8 @@ async def list_epics(
     fields: str = "id,name,phase,owner,creation_time",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List epics.
@@ -617,6 +633,8 @@ async def list_epics(
         order_by="-creation_time",
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -628,6 +646,8 @@ async def create_epic(
     parent_id: str = "",
     owner_id: str = "",
     release_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new epic.
@@ -651,7 +671,7 @@ async def create_epic(
         data["owner"] = {"type": "workspace_user", "id": owner_id}
     if release_id:
         data["release"] = {"type": "release", "id": release_id}
-    result = await oc.create_entity("epics", data)
+    result = await oc.create_entity("epics", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -661,6 +681,8 @@ async def list_features(
     fields: str = "id,name,phase,owner,parent,release,team,milestone,creation_time",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List features.
@@ -683,6 +705,8 @@ async def list_features(
         order_by="-creation_time",
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -697,6 +721,8 @@ async def create_feature(
     release_id: str = "",
     team_id: str = "",
     milestone_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new feature.
@@ -736,7 +762,7 @@ async def create_feature(
         data["team"] = {"type": "team", "id": team_id}
     if milestone_id:
         data["milestone"] = {"type": "milestone", "id": milestone_id}
-    result = await oc.create_entity("features", data)
+    result = await oc.create_entity("features", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -751,6 +777,8 @@ async def update_feature(
     release_id: str = "",
     team_id: str = "",
     milestone_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Update an existing feature.
@@ -796,7 +824,7 @@ async def update_feature(
         data["milestone"] = {"type": "milestone", "id": milestone_id}
     if not data:
         return "Error: no fields specified to update"
-    result = await oc.update_entity("features", entity_id, data)
+    result = await oc.update_entity("features", entity_id, data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -811,6 +839,8 @@ async def list_requirements(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List requirements.
@@ -834,6 +864,8 @@ async def list_requirements(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -844,6 +876,8 @@ async def create_requirement(
     description: str = "",
     parent_id: str = "",
     owner_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new requirement.
@@ -864,7 +898,7 @@ async def create_requirement(
         data["parent"] = {"type": "requirement_document", "id": parent_id}
     if owner_id:
         data["owner"] = {"type": "workspace_user", "id": owner_id}
-    result = await oc.create_entity("requirements", data)
+    result = await oc.create_entity("requirements", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -879,6 +913,8 @@ async def list_tests(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List test items (manual, gherkin/BDD, automated).
@@ -903,6 +939,8 @@ async def list_tests(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -913,6 +951,8 @@ async def list_gherkin_tests(
     fields: str = "id,name,phase,owner,script,creation_time",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List Gherkin (BDD) tests including their feature-file scripts.
@@ -932,6 +972,8 @@ async def list_gherkin_tests(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -942,6 +984,8 @@ async def create_gherkin_test(
     script: str,
     description: str = "",
     owner_id: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new Gherkin (BDD) test with a feature-file script.
@@ -967,7 +1011,7 @@ async def create_gherkin_test(
         data["description"] = description
     if owner_id:
         data["owner"] = {"type": "workspace_user", "id": owner_id}
-    result = await oc.create_entity("gherkin_tests", data)
+    result = await oc.create_entity("gherkin_tests", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -982,6 +1026,8 @@ async def list_test_runs(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-started",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List automated test run results.
@@ -1006,6 +1052,8 @@ async def list_test_runs(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1017,6 +1065,8 @@ async def list_manual_runs(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-last_modified",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List manual test execution runs.
@@ -1037,6 +1087,8 @@ async def list_manual_runs(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1051,6 +1103,8 @@ async def list_sprints(
     fields: str = "id,name,start_date,end_date,release",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List sprints in the workspace.
@@ -1070,6 +1124,8 @@ async def list_sprints(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1080,6 +1136,8 @@ async def list_milestones(
     fields: str = "id,name,date,release,description,acceptance_criteria_udf",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List milestones.
@@ -1100,6 +1158,8 @@ async def list_milestones(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1111,6 +1171,8 @@ async def create_milestone(
     release_id: str,
     acceptance_criteria: str,
     description: str = "",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new milestone.
@@ -1137,7 +1199,7 @@ async def create_milestone(
     }
     if description:
         data["description"] = description
-    result = await oc.create_entity("milestones", data)
+    result = await oc.create_entity("milestones", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -1151,6 +1213,8 @@ async def list_tasks(
     fields: str = "id,name,phase,owner,story,creation_time",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List tasks associated with work items.
@@ -1170,6 +1234,8 @@ async def list_tasks(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1181,6 +1247,8 @@ async def create_task(
     description: str = "",
     owner_id: str = "",
     estimated_hours: float = 0.0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a task associated with a user story.
@@ -1205,7 +1273,7 @@ async def create_task(
         data["owner"] = {"type": "workspace_user", "id": owner_id}
     if estimated_hours > 0:
         data["estimated_hours"] = estimated_hours
-    result = await oc.create_entity("tasks", data)
+    result = await oc.create_entity("tasks", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -1218,6 +1286,8 @@ async def list_phases(
     query: str = "",
     fields: str = "id,name,logical_name",
     limit: int = 200,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List workflow phases available in the workspace.
@@ -1238,6 +1308,8 @@ async def list_phases(
         fields=[f.strip() for f in fields.split(",") if f.strip()],
         query=query or None,
         limit=limit,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1248,6 +1320,8 @@ async def list_workspace_users(
     fields: str = "id,name,email,full_name",
     limit: int = 100,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List users with access to this Octane workspace.
@@ -1269,6 +1343,8 @@ async def list_workspace_users(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1280,6 +1356,8 @@ async def list_ci_builds(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-started_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List CI build records tracked in Octane.
@@ -1301,6 +1379,8 @@ async def list_ci_builds(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1312,6 +1392,8 @@ async def list_scm_commits(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List SCM (source control) commits tracked in Octane.
@@ -1333,6 +1415,8 @@ async def list_scm_commits(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1347,6 +1431,8 @@ async def list_releases(
     fields: str = "id,name,start_date,end_date",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List releases in the workspace.
@@ -1366,6 +1452,8 @@ async def list_releases(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1375,6 +1463,8 @@ async def create_release(
     name: str,
     start_date: str,
     end_date: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Create a new release.
@@ -1392,7 +1482,7 @@ async def create_release(
         "start_date": start_date,
         "end_date": end_date,
     }
-    result = await oc.create_entity("releases", data)
+    result = await oc.create_entity("releases", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 
@@ -1406,6 +1496,8 @@ async def list_teams(
     fields: str = "id,name",
     limit: int = 50,
     offset: int = 0,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List teams in the workspace.
@@ -1425,6 +1517,8 @@ async def list_teams(
         query=query or None,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1440,6 +1534,8 @@ async def list_comments(
     limit: int = 50,
     offset: int = 0,
     order_by: str = "-creation_time",
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     List comments on work items.
@@ -1463,6 +1559,8 @@ async def list_comments(
         order_by=order_by,
         limit=limit,
         offset=offset,
+        shared_space_id=shared_space_id or None,
+        workspace_id=workspace_id or None,
     )
     return _fmt(result)
 
@@ -1471,6 +1569,8 @@ async def list_comments(
 async def create_comment(
     work_item_id: str,
     text: str,
+    shared_space_id: str = "",
+    workspace_id: str = "",
 ) -> str:
     """
     Add a comment to a work item.
@@ -1486,7 +1586,7 @@ async def create_comment(
         "text": text,
         "owner_work_item": {"type": "work_item", "id": work_item_id},
     }
-    result = await oc.create_entity("comments", data)
+    result = await oc.create_entity("comments", data, shared_space_id=shared_space_id or None, workspace_id=workspace_id or None)
     return _fmt(result)
 
 

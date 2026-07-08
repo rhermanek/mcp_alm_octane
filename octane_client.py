@@ -128,7 +128,10 @@ async def _request(
         await _sign_in()
         response = await client.request(method, path, params=params, json=json)
 
-    if response.status_code == 404:
+    # A single-entity GET miss is a legitimate "not found" → null answer.
+    # For writes (PUT/POST/DELETE) a 404 means wrong id/workspace/space and
+    # MUST be surfaced, not swallowed as a silent no-op — fall through to raise.
+    if response.status_code == 404 and method.upper() == "GET":
         return None
 
     if response.status_code == 204:
@@ -140,12 +143,19 @@ async def _request(
         except Exception:
             error_body = response.text
         raise RuntimeError(
-            f"Octane API error {response.status_code}: {error_body}"
+            f"Octane API error {response.status_code} on {method} {path}: {error_body}"
         )
 
-    if response.content:
-        return response.json()
-    return {"status": "ok"}
+    body = response.json() if response.content else {"status": "ok"}
+
+    # Octane returns HTTP 200/207 with a per-entity `errors` array when a
+    # collection create/update partially fails. Surface it instead of
+    # reporting a false success.
+    if isinstance(body, dict) and body.get("errors"):
+        raise RuntimeError(
+            f"Octane API error on {method} {path}: {body['errors']}"
+        )
+    return body
 
 
 def _normalize_query(query: str) -> str:
